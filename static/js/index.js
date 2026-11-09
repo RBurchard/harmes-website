@@ -146,6 +146,95 @@ function formatAuthors(authorships) {
     return names.slice(0, 4).join(', ') + ', et al.';
 }
 
+// Render publication cards into DOM
+function renderPublications(publications, listElement, badgeElement, ZENODO_ID, ARXIV_ID) {
+    if (!listElement) return;
+
+    if (!publications || publications.length === 0) {
+        return;
+    }
+
+    if (badgeElement) {
+        badgeElement.innerHTML = `<i class="fas fa-book-open mr-1"></i> ${publications.length} publication${publications.length === 1 ? '' : 's'}`;
+    }
+
+    listElement.innerHTML = publications.map(work => {
+        const title = escapeHTML(work.title || 'Untitled Publication');
+        const authors = escapeHTML(formatAuthors(work.authorships));
+        const year = work.publication_year || (work.publication_date ? work.publication_date.split('-')[0] : '');
+
+        const loc = work.primary_location || {};
+        const source = loc.source || {};
+        let venue = source.display_name || '';
+        if (venue.includes('arXiv')) {
+            const arxivMatch = (work.doi || '').match(/26\d{2}\.\d{4,5}/);
+            venue = arxivMatch ? `arXiv:${arxivMatch[0]}` : 'arXiv';
+        } else if (venue.includes('Symposium on Wearable Computers')) {
+            venue = 'ISWC';
+        } else if (venue.includes('Research Square')) {
+            venue = 'Research Square (Preprint)';
+        } else if (venue.includes('Zenodo')) {
+            venue = 'Zenodo';
+        }
+
+        const refs = work.referenced_works || [];
+        const citesZenodo = refs.some(r => r.includes(ZENODO_ID));
+        const citesArxiv = refs.some(r => r.includes(ARXIV_ID));
+
+        let citeBadge = '';
+        if (citesZenodo && citesArxiv) {
+            citeBadge = `<span class="tag is-success is-light is-rounded" title="This publication cites both the HARMES paper and dataset"><i class="fas fa-check-double mr-1"></i> Cites Paper & Dataset</span>`;
+        } else if (citesZenodo) {
+            citeBadge = `<span class="tag is-info is-light is-rounded" title="This publication cites the HARMES Zenodo dataset"><i class="fas fa-database mr-1"></i> Cites Dataset</span>`;
+        } else if (citesArxiv) {
+            citeBadge = `<span class="tag is-link is-light is-rounded" title="This publication cites the HARMES paper"><i class="fas fa-file-alt mr-1"></i> Cites Paper</span>`;
+        } else {
+            citeBadge = `<span class="tag is-info is-light is-rounded"><i class="fas fa-quote-right mr-1"></i> Cites HARMES</span>`;
+        }
+
+        const landingUrl = loc.landing_page_url || work.doi || `https://openalex.org/${work.id}`;
+        const doiUrl = work.doi || '';
+        const pdfUrl = loc.pdf_url || '';
+
+        return `
+        <div class="publication-card">
+          <div class="publication-card-title">
+            <a href="${escapeHTML(landingUrl)}" target="_blank" rel="noopener noreferrer">
+              ${title}
+            </a>
+          </div>
+          <div class="publication-card-authors">
+            <i class="fas fa-user-friends mr-1 is-size-7"></i> ${authors}
+          </div>
+          <div class="publication-card-meta">
+            <div class="publication-card-tags">
+              ${year ? `<span class="tag is-dark is-light is-rounded"><strong>${escapeHTML(String(year))}</strong></span>` : ''}
+              ${venue ? `<span class="tag is-primary is-light is-rounded">${escapeHTML(venue)}</span>` : ''}
+              ${citeBadge}
+            </div>
+            <div class="publication-card-actions">
+              ${doiUrl ? `
+                <a href="${escapeHTML(doiUrl)}" target="_blank" rel="noopener noreferrer" class="button is-small is-rounded is-outlined is-dark" title="Open DOI">
+                  <span class="icon is-small"><i class="fas fa-external-link-alt"></i></span>
+                  <span>DOI</span>
+                </a>
+              ` : ''}
+              ${pdfUrl ? `
+                <a href="${escapeHTML(pdfUrl)}" target="_blank" rel="noopener noreferrer" class="button is-small is-rounded is-outlined is-danger" title="Open PDF">
+                  <span class="icon is-small"><i class="fas fa-file-pdf"></i></span>
+                  <span>PDF</span>
+                </a>
+              ` : ''}
+              <a href="${escapeHTML(landingUrl)}" target="_blank" rel="noopener noreferrer" class="button is-small is-rounded is-outlined is-link" title="View Publication">
+                <span class="icon is-small"><i class="fas fa-book"></i></span>
+                <span>View</span>
+              </a>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+}
+
 // Automatically populate publications citing HARMES
 async function loadPublications() {
     const listElement = document.getElementById('publications-list');
@@ -154,6 +243,8 @@ async function loadPublications() {
 
     const ZENODO_ID = 'W7156615923'; // OpenAlex work ID for 10.5281/zenodo.19425718
     const ARXIV_ID = 'W7160246476';  // OpenAlex work ID for arXiv:2605.02596
+    const CACHE_KEY = 'harmes_citing_pubs_v1';
+    const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
     const selfIds = new Set([
         ZENODO_ID,
@@ -169,8 +260,23 @@ async function loadPublications() {
         '23416820'
     ];
 
+    // Check localStorage cache to avoid querying on every page refresh
     try {
-        const url = `https://api.openalex.org/works?filter=cites:${ZENODO_ID}|${ARXIV_ID}&sort=publication_date:desc&per-page=50&mailto=robin.burchard@uni-siegen.de`;
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.timestamp && (Date.now() - parsed.timestamp < CACHE_TTL_MS) && Array.isArray(parsed.publications)) {
+                renderPublications(parsed.publications, listElement, badgeElement, ZENODO_ID, ARXIV_ID);
+                return;
+            }
+        }
+    } catch (e) {
+        // LocalStorage disabled or unavailable; fall through to fetch
+    }
+
+    try {
+        // Query OpenAlex without personal email (anonymous public pool)
+        const url = `https://api.openalex.org/works?filter=cites:${ZENODO_ID}|${ARXIV_ID}&sort=publication_date:desc&per-page=50`;
         const response = await fetch(url);
         if (!response.ok) {
             console.warn('OpenAlex API request returned status:', response.status);
@@ -192,92 +298,20 @@ async function loadPublications() {
         });
 
         if (publications.length === 0) {
-            return; // keep pre-rendered publications or show empty state if none
+            return;
         }
 
-        // Update badge count
-        if (badgeElement) {
-            badgeElement.innerHTML = `<i class="fas fa-book-open mr-1"></i> ${publications.length} publication${publications.length === 1 ? '' : 's'}`;
+        // Cache results in localStorage
+        try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+                timestamp: Date.now(),
+                publications: publications
+            }));
+        } catch (e) {
+            // Storage quota or disabled; ignore
         }
 
-        // Render dynamic cards
-        listElement.innerHTML = publications.map(work => {
-            const title = escapeHTML(work.title || 'Untitled Publication');
-            const authors = escapeHTML(formatAuthors(work.authorships));
-            const year = work.publication_year || (work.publication_date ? work.publication_date.split('-')[0] : '');
-
-            // Determine venue display name
-            const loc = work.primary_location || {};
-            const source = loc.source || {};
-            let venue = source.display_name || '';
-            if (venue.includes('arXiv')) {
-                const arxivMatch = (work.doi || '').match(/26\d{2}\.\d{4,5}/);
-                venue = arxivMatch ? `arXiv:${arxivMatch[0]}` : 'arXiv';
-            } else if (venue.includes('Symposium on Wearable Computers')) {
-                venue = 'ISWC';
-            } else if (venue.includes('Research Square')) {
-                venue = 'Research Square (Preprint)';
-            } else if (venue.includes('Zenodo')) {
-                venue = 'Zenodo';
-            }
-
-            // Citation target badge (Paper, Dataset, or Both)
-            const refs = work.referenced_works || [];
-            const citesZenodo = refs.some(r => r.includes(ZENODO_ID));
-            const citesArxiv = refs.some(r => r.includes(ARXIV_ID));
-
-            let citeBadge = '';
-            if (citesZenodo && citesArxiv) {
-                citeBadge = `<span class="tag is-success is-light is-rounded" title="This publication cites both the HARMES paper and dataset"><i class="fas fa-check-double mr-1"></i> Cites Paper & Dataset</span>`;
-            } else if (citesZenodo) {
-                citeBadge = `<span class="tag is-info is-light is-rounded" title="This publication cites the HARMES Zenodo dataset"><i class="fas fa-database mr-1"></i> Cites Dataset</span>`;
-            } else if (citesArxiv) {
-                citeBadge = `<span class="tag is-link is-light is-rounded" title="This publication cites the HARMES paper"><i class="fas fa-file-alt mr-1"></i> Cites Paper</span>`;
-            } else {
-                citeBadge = `<span class="tag is-info is-light is-rounded"><i class="fas fa-quote-right mr-1"></i> Cites HARMES</span>`;
-            }
-
-            const landingUrl = loc.landing_page_url || work.doi || `https://openalex.org/${work.id}`;
-            const doiUrl = work.doi || '';
-            const pdfUrl = loc.pdf_url || '';
-
-            return `
-            <div class="publication-card">
-              <div class="publication-card-title">
-                <a href="${escapeHTML(landingUrl)}" target="_blank" rel="noopener noreferrer">
-                  ${title}
-                </a>
-              </div>
-              <div class="publication-card-authors">
-                <i class="fas fa-user-friends mr-1 is-size-7"></i> ${authors}
-              </div>
-              <div class="publication-card-meta">
-                <div class="publication-card-tags">
-                  ${year ? `<span class="tag is-dark is-light is-rounded"><strong>${escapeHTML(String(year))}</strong></span>` : ''}
-                  ${venue ? `<span class="tag is-primary is-light is-rounded">${escapeHTML(venue)}</span>` : ''}
-                  ${citeBadge}
-                </div>
-                <div class="publication-card-actions">
-                  ${doiUrl ? `
-                    <a href="${escapeHTML(doiUrl)}" target="_blank" rel="noopener noreferrer" class="button is-small is-rounded is-outlined is-dark" title="Open DOI">
-                      <span class="icon is-small"><i class="fas fa-external-link-alt"></i></span>
-                      <span>DOI</span>
-                    </a>
-                  ` : ''}
-                  ${pdfUrl ? `
-                    <a href="${escapeHTML(pdfUrl)}" target="_blank" rel="noopener noreferrer" class="button is-small is-rounded is-outlined is-danger" title="Open PDF">
-                      <span class="icon is-small"><i class="fas fa-file-pdf"></i></span>
-                      <span>PDF</span>
-                    </a>
-                  ` : ''}
-                  <a href="${escapeHTML(landingUrl)}" target="_blank" rel="noopener noreferrer" class="button is-small is-rounded is-outlined is-link" title="View Publication">
-                    <span class="icon is-small"><i class="fas fa-book"></i></span>
-                    <span>View</span>
-                  </a>
-                </div>
-              </div>
-            </div>`;
-        }).join('');
+        renderPublications(publications, listElement, badgeElement, ZENODO_ID, ARXIV_ID);
 
     } catch (err) {
         console.error('Failed to auto-populate publications:', err);

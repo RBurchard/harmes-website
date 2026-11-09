@@ -126,10 +126,10 @@ body {
 }
 
 .publication-header-icon {
-  width: 130px;
-  height: 130px;
-  min-width: 130px;
-  max-width: 130px;
+  width: 260px;
+  height: 260px;
+  min-width: 260px;
+  max-width: 260px;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -148,10 +148,10 @@ body {
   }
 
   .publication-header-icon {
-    width: 96px;
-    height: 96px;
-    min-width: 96px;
-    max-width: 96px;
+    width: 140px;
+    height: 140px;
+    min-width: 140px;
+    max-width: 140px;
   }
 
   .publication-header-container .publication-title {
