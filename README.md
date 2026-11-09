@@ -1,77 +1,63 @@
-# Academic Project Page Template
+# HARMES: A Multi-Modal Dataset for Wearable Human Activity Recognition with Motion, Environmental Sensing and Sound
 
-> **Update (September 2025)**: This template has been modernized with better design, SEO, and mobile support. For the original version, see the [original-version branch](https://github.com/eliahuhorwitz/Academic-project-page-template/tree/original-version).
+[![Website](https://img.shields.io/badge/Website-HARMES-blue.svg)](https://rburchard.github.io/harmes-website/)
+[![arXiv](https://img.shields.io/badge/arXiv-2605.02596-b31b1b.svg)](https://arxiv.org/abs/2605.02596)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19425718.svg)](https://doi.org/10.5281/zenodo.19425718)
+[![Code](https://img.shields.io/badge/GitHub-RBurchard%2FHARMES-black.svg?logo=github)](https://github.com/RBurchard/HARMES)
 
-A clean, responsive template for academic project pages.
+This repository hosts the source code and assets for the **[HARMES Project Website](https://rburchard.github.io/harmes-website/)**.
 
+---
 
-Example project pages built using this template are:
-- https://horwitz.ai/probex
-- https://vision.huji.ac.il/probegen
-- https://horwitz.ai/mother
-- https://horwitz.ai/spectral_detuning
-- https://vision.huji.ac.il/ladeda
-- https://vision.huji.ac.il/dsire
-- https://horwitz.ai/podd
-- https://dreamix-video-editing.github.io
-- https://horwitz.ai/conffusion
-- https://horwitz.ai/3d_ads/
-- https://vision.huji.ac.il/ssrl_ad
-- https://vision.huji.ac.il/deepsim
+## Overview
 
+**HARMES** is a multi-modal wearable dataset combining three wrist-recorded sensing modalities:
+- **Motion Sensing**: 3-axis accelerometer and gyroscope via an Inertial Measurement Unit (IMU).
+- **Atmospheric Environmental Sensing**: Temperature, relative humidity, and barometric pressure.
+- **Acoustic Sensing**: Audio captured during everyday household activities.
 
+Recorded from 20 participants performing Activities of Daily Living (ADLs) in their own homes, HARMES contains over 80 hours of synchronized multi-modal data across 15 ADL classes (such as cooking, cleaning, vacuuming, and washing dishes).
 
-## Start using the template
-To start using the template click on `Use this Template`.
+### Links & Resources
+- **Project Website**: [https://rburchard.github.io/harmes-website/](https://rburchard.github.io/harmes-website/)
+- **Dataset (Zenodo)**: [https://doi.org/10.5281/zenodo.19425718](https://doi.org/10.5281/zenodo.19425718)
+- **Paper (arXiv)**: [https://arxiv.org/abs/2605.02596](https://arxiv.org/abs/2605.02596)
+- **Loading & Benchmark Code**: [https://github.com/RBurchard/HARMES](https://github.com/RBurchard/HARMES)
 
-The template uses html for controlling the content and css for controlling the style. 
-To edit the websites contents edit the `index.html` file. It contains different HTML "building blocks", use whichever ones you need and comment out the rest.  
+---
 
-**IMPORTANT!** Make sure to replace the `favicon.ico` under `static/images/` with one of your own, otherwise your favicon is going to be a dreambooth image of me.
+## Citations
 
-## What's New
+If you use HARMES in your research, please cite both the paper and the dataset:
 
-- Modern, clean design with better mobile support
-- Improved SEO with proper meta tags and structured data
-- Performance improvements (lazy loading, optimized assets)
-- More Works dropdown
-- Copy button for BibTeX citations
-- Better accessibility
+### Paper (arXiv)
 
-## Components
+```bibtex
+@misc{burchard2026harmes,
+  title         = {HARMES: A Multi-Modal Dataset for Wearable Human Activity Recognition with Motion, Environmental Sensing and Sound},
+  author        = {Burchard, Robin and Brückner, Pascal-André and Bock, Marius and Gall, Jürgen and Van Laerhoven, Kristof},
+  year          = {2026},
+  eprint        = {2605.02596},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  url           = {https://arxiv.org/abs/2605.02596}
+}
+```
 
-- Teaser video
-- Image carousel
-- YouTube video embedding
-- Video carousel
-- PDF poster viewer
-- BibTeX citation
+### Dataset (Zenodo)
 
-## Customization
+```bibtex
+@misc{burchard2026harmes_dataset,
+  title     = {HARMES: A Multi-Modal Dataset for Wearable Human Activity Recognition with Motion, Environmental Sensing and Sound},
+  author    = {Burchard, Robin and Brückner, Pascal-André and Bock, Marius and Gall, Jürgen and Van Laerhoven, Kristof},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.19425718},
+  url       = {https://doi.org/10.5281/zenodo.19425718}
+}
+```
 
-The HTML file has TODO comments showing what to replace:
-
-- Paper title, authors, institution, conference
-- Links (arXiv, GitHub, etc.)
-- Abstract and descriptions  
-- Videos, images, and PDFs
-- Related works in the dropdown
-- Meta tags for SEO and social sharing
-
-### Meta Tags
-The template includes meta tags for better search engine visibility and social media sharing. These appear in the `<head>` section and help with:
-- Google Scholar indexing
-- Social media previews (Twitter, Facebook, LinkedIn)
-- Search engine optimization
-
-Create a 1200x630px social preview image at `static/images/social_preview.png`.
-
-## Tips
-
-- Compress images with [TinyPNG](https://tinypng.com)
-- Use YouTube for large videos (>10MB)  
-- Replace the favicon in `static/images/`
-- Works with GitHub Pages
+---
 
 ## Acknowledgments
 Parts of this project page were adopted from the [Nerfies](https://nerfies.github.io/) page.
