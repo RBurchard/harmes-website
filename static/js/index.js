@@ -175,11 +175,13 @@ function renderPublications(publications, listElement, badgeElement, ZENODO_ID, 
             venue = 'Research Square (Preprint)';
         } else if (venue.includes('Zenodo')) {
             venue = 'Zenodo';
+        } else if (venue.includes('University of Birmingham Research Portal')) {
+            venue = 'University of Birmingham Research Portal (Preprint)';
         }
 
         const refs = work.referenced_works || [];
-        const citesZenodo = refs.some(r => r.includes(ZENODO_ID));
-        const citesArxiv = refs.some(r => r.includes(ARXIV_ID));
+        const citesZenodo = Boolean(work._citesZenodo) || refs.some(r => r.includes(ZENODO_ID));
+        const citesArxiv = Boolean(work._citesArxiv) || refs.some(r => r.includes(ARXIV_ID));
 
         let citeBadge = '';
         if (citesZenodo && citesArxiv) {
@@ -243,7 +245,7 @@ async function loadPublications() {
 
     const ZENODO_ID = 'W7156615923'; // OpenAlex work ID for 10.5281/zenodo.19425718
     const ARXIV_ID = 'W7160246476';  // OpenAlex work ID for arXiv:2605.02596
-    const CACHE_KEY = 'harmes_citing_pubs_v1';
+    const CACHE_KEY = 'harmes_citing_pubs_v2';
     const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
     const selfIds = new Set([
@@ -275,26 +277,78 @@ async function loadPublications() {
     }
 
     try {
-        // Query OpenAlex without personal email (anonymous public pool)
-        const url = `https://api.openalex.org/works?filter=cites:${ZENODO_ID}|${ARXIV_ID}&sort=publication_date:desc&per-page=50`;
-        const response = await fetch(url);
-        if (!response.ok) {
-            console.warn('OpenAlex API request returned status:', response.status);
+        // Query both OpenAlex citation graph and full-text identifier mentions
+        // (catches repository preprints whose Zenodo/arXiv references aren't linked in referenced_works)
+        const citesUrl = `https://api.openalex.org/works?filter=cites:${ZENODO_ID}|${ARXIV_ID}&sort=publication_date:desc&per-page=50`;
+        const zenodoFulltextUrl = `https://api.openalex.org/works?filter=fulltext.search:${encodeURIComponent('("19425718" OR "19425719" OR "23416820")')}&sort=publication_date:desc&per-page=50`;
+        const arxivFulltextUrl = `https://api.openalex.org/works?filter=fulltext.search:${encodeURIComponent('"2605.02596"')}&sort=publication_date:desc&per-page=50`;
+
+        const fetchJson = async (url) => {
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            return resp.json();
+        };
+
+        const settled = await Promise.allSettled([
+            fetchJson(citesUrl),
+            fetchJson(zenodoFulltextUrl),
+            fetchJson(arxivFulltextUrl)
+        ]);
+
+        const anySucceeded = settled.some(r => r.status === 'fulfilled');
+        if (!anySucceeded) {
+            console.warn('All OpenAlex publication queries failed.');
             return;
         }
 
-        const data = await response.json();
-        const results = data.results || [];
+        const byTitle = new Map();
 
-        // Filter out the HARMES publication itself
-        const publications = results.filter(work => {
-            if (selfIds.has(work.id)) return false;
-            const doi = (work.doi || '').toLowerCase();
-            if (selfDois.some(d => doi.includes(d))) return false;
-            if (work.title && work.title.toLowerCase().startsWith('harmes: a multi-modal dataset')) {
-                return false;
+        const mergeWorks = (results, viaZenodo, viaArxiv) => {
+            for (const work of results) {
+                if (selfIds.has(work.id)) continue;
+                const doi = (work.doi || '').toLowerCase();
+                if (selfDois.some(d => doi.includes(d))) continue;
+                if (work.title && work.title.toLowerCase().startsWith('harmes: a multi-modal dataset')) {
+                    continue;
+                }
+
+                const normTitle = (work.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const key = normTitle || work.id;
+                const refs = work.referenced_works || [];
+                const citesZ = viaZenodo || refs.some(r => r.includes(ZENODO_ID));
+                const citesA = viaArxiv || refs.some(r => r.includes(ARXIV_ID));
+
+                if (byTitle.has(key)) {
+                    const existing = byTitle.get(key);
+                    const mergedZ = existing._citesZenodo || citesZ;
+                    const mergedA = existing._citesArxiv || citesA;
+                    // Prefer a record with a DOI over one without
+                    const preferred = (!existing.doi && work.doi) ? work : existing;
+                    preferred._citesZenodo = mergedZ;
+                    preferred._citesArxiv = mergedA;
+                    byTitle.set(key, preferred);
+                } else {
+                    work._citesZenodo = citesZ;
+                    work._citesArxiv = citesA;
+                    byTitle.set(key, work);
+                }
             }
-            return true;
+        };
+
+        if (settled[0].status === 'fulfilled') {
+            mergeWorks(settled[0].value.results || [], false, false);
+        }
+        if (settled[1].status === 'fulfilled') {
+            mergeWorks(settled[1].value.results || [], true, false);
+        }
+        if (settled[2].status === 'fulfilled') {
+            mergeWorks(settled[2].value.results || [], false, true);
+        }
+
+        const publications = Array.from(byTitle.values()).sort((a, b) => {
+            const dateA = a.publication_date || String(a.publication_year || '');
+            const dateB = b.publication_date || String(b.publication_year || '');
+            return dateB.localeCompare(dateA);
         });
 
         if (publications.length === 0) {
